@@ -4,6 +4,9 @@
 #include <thread>
 #include <ctime>
 #include <ncurses.h>
+#include <string>
+
+// Scroll wheel issue (fix soon).
 
 enum Direction 
 {
@@ -26,7 +29,7 @@ struct Snake_body {
 
 std::vector<std::vector<char>> build_board(const int& row, const int& columns);
 void print_board(const std::vector<std::vector<char>>& given_board);
-void draw_snake(std::vector<std::vector<char>>& given_board, Snake_body& segments, int& rows, int& columns);
+bool can_draw_snake(std::vector<std::vector<char>>& given_board, Snake_body& segments, int& rows, int& columns);
 void snake_movement(Direction& current_dir, int& ch, Snake_body& segments);
 void spawn_food(std::vector<std::vector<char>>& given_board, int& rows, int& columns);
 
@@ -36,7 +39,7 @@ int main () {
 
     int rows {20};
     int columns {20};
-    int initial_size {1};
+    int initial_size {3};
     std::string start_game;
 
     std::vector<std::vector<char>> board {build_board(rows, columns)};
@@ -57,25 +60,32 @@ int main () {
     noecho();
 
     int ch;
-    bool paused_game = false;
+    bool eliminated = false;
+    int score = 0;
 
     for (int i = 0; i < initial_size; i++){
         segments.segments[i].row = rows / 2;
         segments.segments[i].column = (columns / 2) - i;
     }
 
-        while(!paused_game){
+        while(!eliminated){
             std::vector<std::vector<char>> frame = board;
 
-            draw_snake(frame, segments, rows, columns);
+            bool Valid_drawing = can_draw_snake(frame, segments, rows, columns);
+            if (!Valid_drawing){
+                break;
+            }
             spawn_food(frame, rows, columns);
             print_board(frame);
             refresh();
             snake_movement(current_dir, ch, segments);
+
+            std::string current_score = "CURRENT SCORE: " + std::to_string(score);
+
             mvprintw(frame.size() + 1, 0, "P to pause game! WASD to move!");
+            mvprintw(frame.size() + 2, 0, ("%s", current_score.c_str()));
 
             std::this_thread::sleep_for(std::chrono::milliseconds(150));
-            clear();
         }
 
     endwin();
@@ -110,10 +120,16 @@ void print_board(const std::vector<std::vector<char>>& given_board){
     }
 }
 
-void draw_snake(std::vector<std::vector<char>>& given_board, Snake_body& segments, int& rows, int& columns){
+bool can_draw_snake(std::vector<std::vector<char>>& given_board, Snake_body& segments, int& rows, int& columns){
     for (auto& member_body : segments.segments){
-        given_board[member_body.row][member_body.column] = 'o';
+        if (given_board[member_body.row][member_body.column] == '#'){
+            return false;
+        } else {
+            given_board[member_body.row][member_body.column] = 'o';
+        }
     }
+
+    return true;
 }
 
 void snake_movement(Direction& current_dir, int& ch, Snake_body& segments){
@@ -128,6 +144,8 @@ void snake_movement(Direction& current_dir, int& ch, Snake_body& segments){
         default: break;
     }
 
+    Coordinates Previous_Part = segments.segments[0];
+
     switch(current_dir){
         case up: segments.segments[0].row--; break;
         case down: segments.segments[0].row++; break;
@@ -136,15 +154,20 @@ void snake_movement(Direction& current_dir, int& ch, Snake_body& segments){
         case pause: break;
         default: break;
     }
+
+    for (int i = 1; i < segments.segments.size(); i++){
+        Coordinates Current_part = segments.segments[i];
+        segments.segments[i] = Previous_Part;
+        Previous_Part = Current_part;
+    }
 }
 
 void spawn_food(std::vector<std::vector<char>>& given_board, int& rows, int& columns){
     // fix snake spawn food function, add more onto it.
-    int food_limit = 1;
-    int random_row = rand() % rows;
-    int random_column = rand() % columns;
+    int random_row = rand() % (rows - 2) + 1;
+    int random_column = rand() % (columns - 2) + 1;
 
-    if (given_board[random_row][random_column] != 'A' && given_board[random_row][random_column] != '#'){
+    if (given_board[random_row][random_column] == ' '){
         given_board[random_row][random_column] = 'A';
     }
 }
